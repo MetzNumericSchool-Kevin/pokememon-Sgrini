@@ -1,85 +1,102 @@
-const grille = document.querySelectorAll("#grille_de_jeu > div ");
+const grille = document.querySelectorAll("#grille_de_jeu .box");
 
 const pokemonList = [];
 const randomPokemonPairs = [];
+let firstPick = null;
+let secondPick = null;
+let canClick = true;
 
 const getRandomInt = (max) => Math.floor(Math.random() * max);
 
-function randomPokemon(array) {
-    for (let i = array.length -1; i > 0; i--) {
-      let j = Math.floor(Math.random() * (i+1));
-      let temp = array[i];
-      array[i] = array[j];
-      array[j] = temp;
-    }
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    let j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
 }
 
 async function getPokemon() {
-    const url = "http://localhost:5500/data/pokemon.json";
-    try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Response status: ${response.status}`);
-        }
-
-        return await response.json();
-    } catch (error) {
-        console.error(error.message);
+  const url = "http://localhost:5501/data/pokemon.json";
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Erreur de chargement: ${response.status}`);
     }
+    return await response.json();
+  } catch (error) {
+    console.error(error.message);
+    return [];
+  }
 }
 
 async function loadPokemon() {
-    return pokemonList.push(...await getPokemon());
+  const pokemons = await getPokemon();
+  if (pokemons.length > 0) {
+    pokemonList.push(...pokemons);
+  }
 }
-await loadPokemon();
 
-for (let i=0; i < 6; i++) {
+async function start() {
+  await loadPokemon();
+
+  for (let i = 0; i < 6; i++) {
     const randomInt = getRandomInt(pokemonList.length);
     const pokemon = pokemonList.splice(randomInt, 1);
+    randomPokemonPairs.push(...pokemon, ...pokemon);
+  }
 
-    randomPokemonPairs.push(...pokemon,...pokemon);
+  shuffleArray(randomPokemonPairs);
+
+  grille.forEach((cell, index) => {
+    cell.innerHTML = "<img src='./assets/bush.webp' class='bush' />";
+    cell.addEventListener("click", () => handleClick(cell, index));
+  });
 }
-console.log(randomPokemonPairs);
 
-randomPokemon(randomPokemonPairs);
-console.log(randomPokemonPairs);
+function handleClick(cell, index) {
+  if (!canClick || cell.classList.contains("revealed")) return;
 
-grille.forEach((cell)=> {
-    cell.innerHTML = "<img src='./assets/bush.webp' class='bush' />"; 
-    cell.addEventListener("click", () => {
-        const posCell = Array.from(grille).indexOf(cell);
-        let bushimg = cell.querySelector(".bush");
-        bushimg.style.opacity = "0";
-        console.log(bushimg);
+  let bushimg = cell.querySelector(".bush");
+  if (bushimg) {
+    bushimg.style.opacity = "0";
+  }
 
-        const pokemon = document.createElement("img");
-        pokemon.src = randomPokemonPairs[posCell].sprite;
-        pokemon.classList.add("pokemon");
-        cell.appendChild(pokemon);
-    });
-});
+  const pokemon = document.createElement("img");
+  pokemon.src = randomPokemonPairs[index].sprite;
+  pokemon.classList.add("pokemon");
+  cell.appendChild(pokemon);
+  cell.classList.add("revealed");
 
-// async function shuffle() {
-//     await getPokemon(); 
-//     for (let i = 0; i < pokemon.length; i++) {
-//         pokemon[i]["used"] = false;
-//     }
-// }
+  if (!firstPick) {
+    firstPick = { cell, index };
+  } else {
+    secondPick = { cell, index };
+    canClick = false;
 
-// addEventListener("click", async () => {
-//     await shuffle();
+    setTimeout(checkMatch, 1000);
+  }
+}
 
-//     const limit = Math.min(grille.length, pokemon.length);
+function checkMatch() {
+  if (firstPick && secondPick) {
+    if (
+      randomPokemonPairs[firstPick.index].name ===
+      randomPokemonPairs[secondPick.index].name
+    ) {
+      console.log("Bonne paire !");
+    } else {
+      firstPick.cell.innerHTML =
+        "<img src='./assets/bush.webp' class='bush' />";
+      secondPick.cell.innerHTML =
+        "<img src='./assets/bush.webp' class='bush' />";
+      firstPick.cell.classList.remove("revealed");
+      secondPick.cell.classList.remove("revealed");
+    }
 
-//     for (let i = 0; i < limit; i++) {
-//         if (pokemon[i] && pokemon[i].sprite) {
-//             grille[i].src = pokemon[i].sprite;
-//         } else {
-//             grille[i].src = "./assets/bush.webp";
-//         }
-//     }
+    firstPick = null;
+    secondPick = null;
+    canClick = true;
+  }
+}
 
-//     for (let i = limit; i < grille.length; i++) {
-//         grille[i].src = "./assets/bush.webp"; 
-//     }
-// });
+start();
